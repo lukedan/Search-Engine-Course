@@ -1,0 +1,6 @@
+*.pyc
+Crawler/phantomjs
+Crawler/phantomjs.exe
+Crawler/.idea
+Crawler/downloaded
+
