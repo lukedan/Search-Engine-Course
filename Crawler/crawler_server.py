@@ -67,7 +67,7 @@ class bloom_filter:
 
 	@staticmethod
 	def test_bit(lng, b):
-		return (lng >> b) % 2 == 0
+		return (lng >> b) % 2 == 1
 
 	@staticmethod
 	def set_bit(lng, b):
@@ -242,7 +242,7 @@ class advanced_url_storage:
 			try:
 				self.robot.parse(get_page_rawhtml(rburl, timeout = 10.0))
 			except Exception, e:
-				log.write('Failed to get robots.txt at ' + rburl + ': ' + str(e) + '\n')
+				log.write('[ROBOTFAIL] ' + rburl + ': ' + str(e) + '\n')
 				self.robot = None
 
 		def can_fetch(self, url):
@@ -453,7 +453,7 @@ class cralwer_tcp_handler(SocketServer.ThreadingMixIn, SocketServer.StreamReques
 							sto.put((x, S_NEWURL))
 				elif info == C_FAILED:
 					pg = rf.readline().strip()
-					log.write('FAILED TO LOAD PAGE: ' + pg + '\n')
+					log.write('[PAGEFAIL] ' + pg + '\n')
 				# sto.putback((pg, S_RETRY))  # TODO maybe something can be done...
 			session_down = (paused or ses_quit or sto.empty())
 			if session_down:
@@ -488,8 +488,10 @@ class cralwer_tcp_handler(SocketServer.ThreadingMixIn, SocketServer.StreamReques
 			cdata, raw = receive_crawler_data(self.rfile)
 			timer.tick('Resp')
 			self.request.sendall(cdata)
-			log.write(phased_timer.format_message(timer.stop()))  # TODO exception handling too weak
-		except Exception, msg:
+			tmres = timer.stop()
+			if phased_timer.has_critical(tmres):
+				log.write(phased_timer.format_message(tmres))
+		except Exception as msg:  # TODO exception handling too weak
 			on_exception(msg)
 			if raw:
 				sto.putback(raw)
@@ -525,11 +527,7 @@ def start_server(srv):
 	srv.serve_forever()
 
 def _csv_list():
-	for x in globals().keys():
-		if x.startswith('cmd_'):
-			sys.stdout.write('%15s\t' % x[4:])
-	sys.stdout.write('exit\n')
-	sys.stdout.flush()
+	list_commands('_csv_', globals())
 
 def _csv_addseed(seed):
 	sto.put((normalize_url(seed.decode('utf8')), S_NEWURL))
@@ -555,23 +553,29 @@ def _csv_fp_ratio():
 def _csv_stat():
 	sys.stdout.write(sto.stats.to_str())
 	totut = 0.0
-	print('+----+---------+-------+')
-	print('| id | up time | pages |')
-	print('+----+---------+-------+')
 	session_rec_lock.acquire()
 	try:
 		ses_num = len(session_rec)
-		for x in session_rec.values():
-			upt = x.get_uptime()
-			print('|%3s | %7.01f | %5d |' % (x.session_id, upt, x.num_pages))
-			totut += upt
+		if ses_num == 0:
+			print('+--------------------+')
+			print('| no active sessions |')
+			print('+--------------------+')
+		else:
+			print('+----+---------+-------+')
+			print('| id | up time | pages |')
+			print('+----+---------+-------+')
+			for x in session_rec.values():
+				upt = x.get_uptime()
+				print('|%3s | %7.01f | %5d |' % (x.session_id, upt, x.num_pages))
+				totut += upt
+			print('+----+---------+-------+')
 	finally:
 		session_rec_lock.release()
-	print('+----+---------+-------+')
 	print('total up time:\t%.01f' % totut)
-	apt = totut / sto.stats.popped_urls
-	print('average page time:\t%.01f' % apt)
-	print('pages per second est.:\t%.01f' % (ses_num / apt))
+	if sto.stats.popped_urls > 0:
+		apt = totut / sto.stats.popped_urls
+		print('average page time:\t%.01f' % apt)
+		print('pages per second est.:\t%.01f' % (ses_num / apt))
 
 def main():
 	global paused, sto, stopped
@@ -579,10 +583,6 @@ def main():
 	t = threading.Thread(target = check_broadcast_and_respond)
 	t.setDaemon(True)
 	t.start()
-
-	if len(sys.argv) > 1:
-		seed = normalize_url(sys.argv[1].decode('utf8'))
-		sto.put((seed, S_NEWURL))
 
 	myip = get_ip()
 	server = SocketServer.TCPServer((myip, SERVER_PORT), cralwer_tcp_handler, False)
@@ -608,7 +608,7 @@ def main():
 		sys.stdout.write('\r' + str(srl) + ' sessions remaining...  ')
 		sys.stdout.flush()
 		time.sleep(1)
-	sys.stdout.write('\n')
+	sys.stdout.write('\rAll sessions shutdown          \n')
 	server.shutdown()
 
 if __name__ == '__main__':

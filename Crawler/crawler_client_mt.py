@@ -5,6 +5,9 @@ crawlers = []
 writer = crawler_client.async_webpage_saver()
 logger = external_console_logger('/tmp/crawlermt_log.txt')
 
+def _cclmt_list():
+	list_commands('_cclmt_', globals())
+
 def _cclmt_stat():
 	print('writer_cache_size\t' + str(writer.buffered_size()))
 	for x in crawlers:
@@ -17,10 +20,15 @@ def main():
 		targetip = crawler_client.get_srv_dest_broadcast()
 	numts = input('Number of threads: ')
 	for i in range(numts):
+		driver = crawler_client.rawhtml_driver()
+		# try:
+		# 	driver = crawler_client.phantomjs_driver()
+		# except:
+		# 	driver = crawler_client.rawhtml_driver()
 		cc = crawler_client.crawler_session(
 			(targetip, SERVER_PORT),
 			writer,
-			crawler_client.phantomjs_driver(),
+			driver,
 			logger
 		)
 		cc.pend_message = '.'
@@ -46,7 +54,7 @@ def main():
 		sys.stdout.write('\r' + str(left) + ' sessions remaining...  ')
 		sys.stdout.flush()
 		time.sleep(1)
-	sys.stdout.write('\rAll sessions shutdown\n')
+	sys.stdout.write('\rAll sessions shutdown          \n')
 	writer.shutdown()
 	while not writer.has_shutdown():
 		sys.stdout.write('\rRemaining data: ' + str(writer.buffered_size()) + '  ')

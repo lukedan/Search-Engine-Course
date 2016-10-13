@@ -4,13 +4,14 @@ C_INIT = 'i'
 C_PENDING = 'n'
 C_SUCCESS = 's'
 C_FAILED = 'f'
-C_QUIT = 'q'  # TODO
+C_QUIT = 'q'
 
 S_NEWURL = 'N'
 S_RETRY = 'R'
 S_PEND = 'P'
-S_SHUTDOWN = 'S'  # TODO
+S_SHUTDOWN = 'S'
 
+UNKNOWN_SESSION = '<UNK>'
 SESSION_ID_DELIMETER = '$'
 
 SAVE_FOLDER = './downloaded/'
@@ -73,6 +74,13 @@ class phased_timer:
 		return x
 
 	@staticmethod
+	def has_critical(tbl, ctt = 0.5, ign = ()):
+		for x in tbl:
+			if x[0] not in ign and x[1] > ctt:
+				return True
+		return False
+
+	@staticmethod
 	def format_table(tbl, mid = ': '):
 		fms = '%' + str(max((len(x[0]) for x in tbl))) + 's' + mid + '%.04f'
 		res = []
@@ -102,14 +110,24 @@ class common_logger:
 		self.file.write(s)
 		self.file.flush()
 
+def exec_in_new_console(cmd):
+	return subprocess.Popen(('gnome-terminal', '-x') + cmd)
+
 class external_console_logger:
 	def __init__(self, logfile, mode = 'w'):
 		self._file = open(logfile, mode)
-		self._disp = subprocess.Popen(['gnome-terminal', '-x', 'tail', '-f', logfile])
+		self._disp = exec_in_new_console(('tail', '-f', logfile))
 
 	def write(self, s):
 		self._file.write(s)
 		self._file.flush()
+
+def list_commands(prefix, lup_tbl):
+	for x in lup_tbl.keys():
+		if x.startswith(prefix):
+			sys.stdout.write('%15s' % x[4:])
+	sys.stdout.write('\n')
+	sys.stdout.flush()
 
 def execute_commands_until(target_cmd, prefix, lup_tbl):
 	while True:

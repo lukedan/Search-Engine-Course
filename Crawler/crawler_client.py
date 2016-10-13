@@ -15,7 +15,7 @@ except ImportError:
 	webdriver = None  # disable the warning
 	print(
 		"Warning: Selenium package not found on your computer. "
-		"You won't be able to access advanced features of this crawler."
+		"You won't be able to access advanced features of the crawler."
 	)
 
 class phantomjs_driver:
@@ -34,15 +34,6 @@ class rawhtml_driver:
 
 	def get(self, pg):
 		return get_page_rawhtml(pg, self.headers, timeout = self.timeout)
-
-def get_all_links(pgdata, pg):
-	# for x in re.findall('<\s*[Aa]\s(?:"(?:\\\\|\\"|[^"])*"|[^>])*?\s[Hh][Rr][Ee][Ff]\s*=\s*"((?:http|/)(?:\\\\|\\"|[^"])*)', pgdata):
-	# 	print x
-	soup = BeautifulSoup(pgdata, 'html.parser')
-	res = []
-	for x in soup.find_all('a', {'href': re.compile('^http|^/')}):
-		res.append(normalize_url(urlparse.urljoin(pg, x['href'].strip())))
-	return res
 
 class async_webpage_saver:
 	def __init__(self, folder = SAVE_FOLDER, nts = 5):
@@ -77,10 +68,10 @@ class async_webpage_saver:
 		return self._num > 0
 
 	def write(self, pgname, cont):
-		self._updage_sz(len(cont))
+		self._update_sz(len(cont))
 		self._q.put((pgname, cont))
 
-	def _updage_sz(self, diff):
+	def _update_sz(self, diff):
 		self._szl.acquire()
 		try:
 			self._sz += diff
@@ -101,7 +92,7 @@ class async_webpage_saver:
 						break
 				else:
 					item = self._q.get()
-				self._updage_sz(-len(item[1]))
+				self._update_sz(-len(item[1]))
 				try:
 					indexwriter.write(str(filename) + '\t' + item[0] + '\n')
 					with open(folder + str(filename), 'w') as out:
@@ -152,17 +143,42 @@ class crawler_session:
 			desc += ': ' + self.cur_page
 		return desc
 
+	def get_all_links(self, pgdata):
+		# for x in re.findall('<\s*[Aa]\s(?:"(?:\\\\|\\"|[^"])*"|[^>])*?\s[Hh][Rr][Ee][Ff]\s*=\s*"((?:http|/)(?:\\\\|\\"|[^"])*)', pgdata):
+		# 	print x
+		soup = BeautifulSoup(pgdata, 'html.parser')
+		res = []
+		for x in soup.find_all('a', {'href': re.compile('^http|^/')}):
+			try:
+				url = normalize_url(urlparse.urljoin(self.cur_page, x['href'].strip()))
+				res.append(url)
+			except:
+				self.logger.write('[BADURL] ' + self.cur_page + ' | ' + x['href'].strip() + '\n')
+		return res
+
 	def submit_and_acquire(self, data):
+		timer = phased_timer()
+		timer.start('crat')
 		sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.status = crawler_session.COMM_CONNECT
+		timer.tick('conn')
 		sock.connect(self.server)
 		try:
 			self.status = crawler_session.COMM_SEND
+			timer.tick('send')
 			sock.sendall(data)
 			self.status = crawler_session.COMM_RECV
+			timer.tick('recv')
 			msg = sock.recv(4096)
 		finally:
 			sock.close()
+			if self.write_timing_message:
+				sn = self.session_name
+				if sn is None:
+					sn = UNKNOWN_SESSION
+				timres = timer.stop()
+				if phased_timer.has_critical(timres):
+					self.logger.write(sn + ': ' + phased_timer.format_message(timres))
 		return msg
 
 	@staticmethod
@@ -180,7 +196,7 @@ class crawler_session:
 			self.submit_and_acquire(''.join((sig, self.session_name, SESSION_ID_DELIMETER, msg))))
 
 	def init_connection(self):
-		session, stat, pg = '-1', S_PEND, ''
+		session, stat, pg = UNKNOWN_SESSION, S_PEND, ''
 		while True:
 			try:
 				session, stat, pg = crawler_session.split_on_init(self.submit_and_acquire(C_INIT))
@@ -219,10 +235,12 @@ class crawler_session:
 					self.status = crawler_session.SAVEPAGE
 					self.writer.write(self.cur_page, content)
 					timer.tick('getlinks')
-					lst = get_all_links(content, self.cur_page)
+					lst = self.get_all_links(content)
 					commmsg = (C_SUCCESS, str(len(lst)) + '\n' + '\n'.join(lst) + '\n')
 				if self.write_timing_message:
-					self.logger.write(self.session_name + ': ' + phased_timer.format_message(timer.stop()))
+					timres = timer.stop()
+					if phased_timer.has_critical(timres, ign = ('getpage',)):
+						self.logger.write(self.session_name + ': ' + phased_timer.format_message(timres))
 			if self.stop:
 				commmsg = (C_QUIT + commmsg[0],) + commmsg[1:]
 			while True:
@@ -230,7 +248,7 @@ class crawler_session:
 					stat, self.cur_page = self.post_and_recv(*commmsg)
 					break
 				except Exception as msg:
-					on_exception(msg, 'Failed to communicate with server {type}\n{tb}\n{msg}')
+					self.logger.write('[COMMFAIL] ' + str(msg) + '\n')
 					time.sleep(2)
 		self.status = crawler_session.SHUTDOWN
 
@@ -258,11 +276,18 @@ def get_srv_dest_broadcast():
 	return addr
 
 def main():
-	targetip = raw_input('Server address (leave blank to automatically search for a server): ').strip()
+	if len(sys.argv) == 1:
+		targetip = raw_input('Server address (leave blank to automatically search for a server): ').strip()
+	else:
+		targetip = sys.argv[1]
 	if len(targetip) == 0:
 		targetip = get_srv_dest_broadcast()
 	writer = async_webpage_saver()
-	driver = phantomjs_driver()
+	# try:
+	# 	driver = phantomjs_driver()
+	# except:
+	# 	driver = rawhtml_driver()
+	driver = rawhtml_driver()
 	logger = common_logger()
 	session = crawler_session((targetip, SERVER_PORT), writer, driver, logger)
 	session.crawl_until_stop()
