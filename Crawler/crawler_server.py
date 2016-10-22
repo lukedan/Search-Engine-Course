@@ -35,7 +35,7 @@ class trie:
 		return cur_node
 
 class hash_table:
-	_HASH_TABLE_SIZE = 1000007
+	_HASH_TABLE_SIZE = 10000007
 
 	def __init__(self):
 		self._h = []
@@ -63,7 +63,7 @@ class hash_table:
 			self._lock.release()
 
 class bloom_filter:
-	_BLOOM_FILTER_SIZE = 1000007
+	_BLOOM_FILTER_SIZE = 10000007
 
 	@staticmethod
 	def test_bit(lng, b):
@@ -160,40 +160,6 @@ class bloom_filter_donelist:
 	def has(self, url):
 		return self._bf.has(url)
 
-class test_bloom_filter_donelist:
-	def __init__(self):
-		self._ht = hash_table()
-		self._ht.hash_func = hash_table_donelist.hash_func
-		self._bf = bloom_filter()
-		self._bf.hash_funcs = [bloom_filter_donelist.hash_func_1, bloom_filter_donelist.hash_func_2]
-		self._htc = 0
-		self._bfc = 0
-		self._l = threading.Lock()
-
-	def put(self, url):
-		self._l.acquire()
-		try:
-			if self._ht.put(url):
-				self._htc += 1
-				if self._bf.put(url):
-					self._bfc += 1
-				return True
-			return False
-		finally:
-			self._l.release()
-
-	def has(self, url):
-		self._l.acquire()
-		try:
-			return self._ht.has(url)
-		finally:
-			self._l.release()
-
-	def get_bloom_filter_false_positive_ratio(self):
-		if self._htc == 0:
-			return 0
-		return (self._htc - self._bfc) / self._htc
-
 class advanced_url_storage:
 	@staticmethod
 	def get_host_url(pdurl):
@@ -232,6 +198,7 @@ class advanced_url_storage:
 			self.q = collections.deque()
 			self.active = False
 			self.robot = robotparser.RobotFileParser()
+			self.robotcontent = None
 			self.ready = False
 
 		def get_url(self):
@@ -240,10 +207,12 @@ class advanced_url_storage:
 		def get_robot(self):
 			rburl = advanced_url_storage.get_host_url(self.url) + '/robots.txt'
 			try:
-				self.robot.parse(get_page_rawhtml(rburl, timeout = 10.0))
+				self.robotcontent = get_page_rawhtml(rburl, timeout = 10.0).replace('\r', '\n')
+				self.robot.parse(self.robotcontent)
 			except Exception, e:
 				log.write('[ROBOTFAIL] ' + rburl + ': ' + str(e) + '\n')
 				self.robot = None
+				self.robotcontent = ''
 
 		def can_fetch(self, url):
 			if self.robot is None:
@@ -253,8 +222,9 @@ class advanced_url_storage:
 	class crawl_stats:
 		def __init__(self):
 			self.popped_urls = 0
+			self.failed_urls = 0
 			self.urls = 0
-			self.hosts = 0
+			self.inactive_hosts = 0
 			self.active_hosts = 0
 			self._lock = threading.Lock()
 
@@ -277,9 +247,11 @@ class advanced_url_storage:
 	def __init__(self):
 		self._hsts = trie()
 		self._hstq = Queue.Queue()
-		self._dl = test_bloom_filter_donelist()
+		self._dl = hash_table_donelist()
 		# stuff for robots.txt
 		self._waitq = Queue.Queue()
+		self._shutdown = False
+		self._rbtstopped = False
 		t = threading.Thread(target = self._update_robots)
 		t.setDaemon(True)
 		t.start()
@@ -293,9 +265,12 @@ class advanced_url_storage:
 		return self.size() == 0
 
 	def _update_robots(self):
-		while True:
-			if self._waitq.qsize() > 0:
-				host = self._waitq.get()
+		while not self._shutdown:
+			try:
+				host = self._waitq.get(False)
+			except Queue.Empty:
+				time.sleep(0.5)
+			else:
 				host.tag.get_robot()
 				newq = collections.deque()
 				szdiff = 0
@@ -316,10 +291,64 @@ class advanced_url_storage:
 				self.stats.lock()
 				try:
 					self.stats.urls -= szdiff
+					self.stats.inactive_hosts -= 1
 					self.stats.active_hosts += 1
 				finally:
 					self.stats.unlock()
 				self._hstq.put(host)
+		self._rbtstopped = True
+
+	# TODO not finished
+	def save_shutdown(self, filename):  # to be called only when no sessions are running
+		"""
+		file format:
+		[active hosts]
+			[number of hosts]
+			[each host]
+				[robot]
+					[number of lines for robot]
+					[robot lines]
+				[urls]
+					[number of urls]
+					[urls]
+		[inactive hosts]
+			[number of hosts]
+			[each host]
+				[urls]
+					[number of urls]
+					[urls]
+		[stats]
+			[ordered as in the struct, for validation purposes]
+		"""
+		self._shutdown = True
+		while not self._rbtstopped:
+			pass
+		with open(filename, 'w') as fout:
+			fout.write(str(self.stats.popped_urls) + '\n')
+			fout.write(str(self.stats.failed_urls) + '\n')
+			fout.write(str(self.stats.urls) + '\n')
+			fout.write(str(self.stats.inactive_hosts) + '\n')
+			fout.write(str(self.stats.active_hosts) + '\n')
+			output = []
+			while True:
+				try:
+					curhst = self._hstq.get(False)
+				except Queue.Empty:
+					break
+				output.append(str(len(curhst.tag.robotcontent.split('\n'))))
+				output.append(curhst.tag.robotcontent.encode('utf8'))
+				output.append(str(len(curhst.tag.q)))
+				while len(curhst.tag.q) > 0:
+					output.append(''.join(curhst.tag.q.popleft()[::-1]))
+			while True:
+				try:
+					curhst = self._waitq.get(False)
+				except Queue.Empty:
+					break
+				output.append(str(len(curhst.tag.q)))
+				while len(curhst.tag.q) > 0:
+					output.append(''.join(curhst.tag.q.popleft()[::-1]))
+			fout.write('\n'.join(output))
 
 	def _do_put(self, url, putfunc):
 		parsed = urlparse.urlsplit(url[0])
@@ -348,7 +377,7 @@ class advanced_url_storage:
 		self.stats.lock()
 		try:
 			if new_host:
-				self.stats.hosts += 1
+				self.stats.inactive_hosts += 1
 			if actived_host:
 				self.stats.active_hosts += 1
 			if can_add:
@@ -362,6 +391,14 @@ class advanced_url_storage:
 
 	def putback(self, url):
 		self._do_put(url, collections.deque.appendleft)
+
+	def onfail(self, url):
+		# TODO no we don't put it back
+		self.stats.lock()
+		try:
+			self.stats.failed_urls += 1
+		finally:
+			self.stats.unlock()
 
 	def get(self):
 		curnode = self._hstq.get()
@@ -391,6 +428,7 @@ class session_info:
 		self._st_accum = 0.0
 		self._st_up = None
 		self.num_pages = 0
+		self.assigned = None
 
 	def on_up(self):
 		self._st_up = time.time()
@@ -453,6 +491,7 @@ class cralwer_tcp_handler(SocketServer.ThreadingMixIn, SocketServer.StreamReques
 							sto.put((x, S_NEWURL))
 				elif info == C_FAILED:
 					pg = rf.readline().strip()
+					sto.onfail(pg)
 					log.write('[PAGEFAIL] ' + pg + '\n')
 				# sto.putback((pg, S_RETRY))  # TODO maybe something can be done...
 			session_down = (paused or ses_quit or sto.empty())
@@ -466,6 +505,10 @@ class cralwer_tcp_handler(SocketServer.ThreadingMixIn, SocketServer.StreamReques
 			session_rec_lock.acquire()
 			try:
 				cur_session = session_rec[cur_session_name]
+				if rawres is None:
+					cur_session.assigned = None
+				else:
+					cur_session.assigned = rawres[0]
 				if session_addpage:
 					cur_session.num_pages += 1
 				if session_down != cur_session.is_down():
@@ -547,9 +590,6 @@ def _csv_is_paused():
 	global paused
 	print(paused)
 
-def _csv_fp_ratio():
-	print(sto._dl.get_bloom_filter_false_positive_ratio())
-
 def _csv_stat():
 	sys.stdout.write(sto.stats.to_str())
 	totut = 0.0
@@ -610,6 +650,8 @@ def main():
 		time.sleep(1)
 	sys.stdout.write('\rAll sessions shutdown          \n')
 	server.shutdown()
+	print('Saving pool...')
+	sto.save_shutdown('.savedstorage')
 
 if __name__ == '__main__':
 	main()

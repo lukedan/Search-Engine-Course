@@ -21,6 +21,8 @@ BROADCAST_CONTENT = 'CRAWLER_FIND_SERVER'
 SERVER_PORT = 1237
 USER_AGENT = 'YYTZCrawler'
 
+NO_JAVASCRIPT = True
+
 def on_exception(e, msg = 'Exception {type} caught at\n{tb}\n{msg}'):
 	print('\n##########')
 	print(msg.format(type = str(type(e)), tb = ''.join(traceback.format_tb(sys.exc_info()[2])), msg = str(e)))
@@ -31,24 +33,35 @@ DEFAULT_REQUEST_HEADERS = {
 }
 
 def get_page_rawhtml(url, headers = DEFAULT_REQUEST_HEADERS, **kwargs):
-	html = urllib2.urlopen(urllib2.Request(url = url, headers = headers), **kwargs).read()
+	response = urllib2.urlopen(urllib2.Request(url = url, headers = headers), **kwargs)
+	msg = response.info()
+	if msg.getmaintype() != 'text':
+		raise TypeError('content is not text')
+	coding = msg.getencoding()
+	html = response.read()
+	if coding == '7bit':
+		coding = 'utf8'
 	try:
-		html = html.decode('utf8')
+		html = html.decode(coding)
 	except:
-		html = html.decode('GBK')
+		html = html.decode('utf8')
 	return html
 
 def normalize_url(url):
 	def to_ascii(ustr):
-		return urllib.unquote_plus(urllib.quote_plus(ustr.encode('utf8'))).replace('\n', '%0d')
+		return urllib.quote_plus(urllib.unquote_plus(ustr.encode('utf8')))
 
 	url = urlparse.urlsplit(url)
-	nlofurl = url.hostname.encode('idna').lower()
+	nlofurl = url.hostname.encode('idna')
+	if ':' in nlofurl:
+		raise NameError('invalid hostname')
 	if not url.port is None:
 		nlofurl += ':' + str(url.port)
-	pathofurl = to_ascii(url.path).lower()
-	if pathofurl.endswith('/'):
-		pathofurl = pathofurl[:-1]
+	pathlist = url.path.split('/')
+	pathofurl = ''
+	for x in pathlist:
+		if len(x) > 0:
+			pathofurl += '/' + to_ascii(x.lower())
 	return urlparse.urlunsplit((to_ascii(url.scheme).lower(), nlofurl, pathofurl, to_ascii(url.query), ''))
 
 class phased_timer:

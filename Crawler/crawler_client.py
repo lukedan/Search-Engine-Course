@@ -1,5 +1,5 @@
 from crawler_common import *
-import re, urlparse, os, platform, socket, time, sys, Queue, threading
+import re, urlparse, os, platform, socket, time, sys, Queue, threading, random
 from bs4 import BeautifulSoup
 
 try:
@@ -35,6 +35,34 @@ class rawhtml_driver:
 	def get(self, pg):
 		return get_page_rawhtml(pg, self.headers, timeout = self.timeout)
 
+class immediate_webpage_saver:
+	def __init__(self, sn, folder = SAVE_FOLDER):
+		self._folder = os.path.join(folder, sn)
+		if not os.path.exists(folder):
+			os.mkdir(folder)
+		if not os.path.exists(self._folder):
+			os.mkdir(self._folder)
+		self._idxw = open(os.path.join(self._folder, 'index'), 'w')
+		self._id = 0
+
+	def buffered_size(self):
+		return 0
+
+	def shutdown(self):
+		self._idxw.close()
+
+	def shutdown_and_wait(self):
+		self.shutdown()
+
+	def has_shutdown(self):
+		return True
+
+	def write(self, pgname, cont):
+		with open(os.path.join(self._folder, str(self._id)), 'w') as fout:
+			fout.write(cont.encode('utf8'))
+		self._idxw.write((str(self._id) + '\t' + pgname).encode('utf8'))
+		self._id += 1
+
 class async_webpage_saver:
 	def __init__(self, folder = SAVE_FOLDER, nts = 5):
 		self._q = Queue.Queue()
@@ -47,7 +75,7 @@ class async_webpage_saver:
 		for i in range(nts):
 			t = threading.Thread(
 				target = async_webpage_saver._thread_work,
-				args = (self, folder + str(i) + '/'),
+				args = (self, os.path.join(folder, str(i))),
 				name = 'IOWriterThread #' + str(i)
 			)
 			t.setDaemon(True)
@@ -81,7 +109,7 @@ class async_webpage_saver:
 	def _thread_work(self, folder):
 		if not os.path.exists(folder):
 			os.mkdir(folder)
-		indexwriter = open(folder + 'index', 'w')
+		indexwriter = open(os.path.join(folder, 'index'), 'w')
 		try:
 			filename = 0
 			while True:
@@ -95,7 +123,7 @@ class async_webpage_saver:
 				self._update_sz(-len(item[1]))
 				try:
 					indexwriter.write(str(filename) + '\t' + item[0] + '\n')
-					with open(folder + str(filename), 'w') as out:
+					with open(os.path.join(folder, str(filename)), 'w') as out:
 						out.write(item[1].encode('utf8'))
 				except Exception, e:  # TODO handle it
 					on_exception(e)
@@ -130,8 +158,9 @@ class crawler_session:
 		self.pend_message = '{session}: Pending...\n'
 		self.preget_msg = '{session}: Getting {page}...'
 		self.postget_msg = ' done\n'
-		self.write_stat_update_message = True
+		self.write_stat_update_message = False
 		self.write_timing_message = True
+		self.write_error_message = True
 		self.stop = False
 		self.session_name = None
 		self.status = crawler_session.SHUTDOWN
@@ -148,12 +177,12 @@ class crawler_session:
 		# 	print x
 		soup = BeautifulSoup(pgdata, 'html.parser')
 		res = []
-		for x in soup.find_all('a', {'href': re.compile('^http|^/')}):
+		for x in soup.find_all('a', {'href': re.compile('^(http|/)')}):
 			try:
 				url = normalize_url(urlparse.urljoin(self.cur_page, x['href'].strip()))
 				res.append(url)
 			except:
-				self.logger.write('[BADURL] ' + self.cur_page + ' | ' + x['href'].strip() + '\n')
+				self.logger.write('[BADURL] ' + self.cur_page + ' | ' + x['href'].strip().encode('utf8') + '\n')
 		return res
 
 	def submit_and_acquire(self, data):
@@ -282,12 +311,18 @@ def main():
 		targetip = sys.argv[1]
 	if len(targetip) == 0:
 		targetip = get_srv_dest_broadcast()
-	writer = async_webpage_saver()
-	# try:
-	# 	driver = phantomjs_driver()
-	# except:
-	# 	driver = rawhtml_driver()
-	driver = rawhtml_driver()
+	if len(sys.argv) > 2:
+		myid = sys.argv[2]
+	else:
+		myid = str(random.randint(0, 65535))
+	writer = immediate_webpage_saver(myid)
+	if NO_JAVASCRIPT:
+		driver = rawhtml_driver()
+	else:
+		try:
+			driver = phantomjs_driver()
+		except NameError:
+			driver = rawhtml_driver()
 	logger = common_logger()
 	session = crawler_session((targetip, SERVER_PORT), writer, driver, logger)
 	session.crawl_until_stop()

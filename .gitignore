@@ -1,6 +1,7 @@
 *.pyc
 Crawler/phantomjs
 Crawler/phantomjs.exe
-Crawler/.idea
+.idea
+Crawler/.savedstorage
 Crawler/downloaded
 

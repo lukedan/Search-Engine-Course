@@ -20,11 +20,13 @@ def main():
 		targetip = crawler_client.get_srv_dest_broadcast()
 	numts = input('Number of threads: ')
 	for i in range(numts):
-		driver = crawler_client.rawhtml_driver()
-		# try:
-		# 	driver = crawler_client.phantomjs_driver()
-		# except:
-		# 	driver = crawler_client.rawhtml_driver()
+		if NO_JAVASCRIPT:
+			driver = crawler_client.rawhtml_driver()
+		else:
+			try:
+				driver = crawler_client.phantomjs_driver()
+			except NameError:
+				driver = crawler_client.rawhtml_driver()
 		cc = crawler_client.crawler_session(
 			(targetip, SERVER_PORT),
 			writer,
