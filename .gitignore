@@ -4,4 +4,7 @@ Crawler/phantomjs.exe
 .idea
 Crawler/.savedstorage
 Crawler/downloaded
+*.ico
+*.gif
+*.jpg
 

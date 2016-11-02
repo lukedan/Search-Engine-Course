@@ -1,0 +1,253 @@
+$def with(options)
+<link rel="icon" href="/files/icons/search.ico" type=”image/x-icon”>
+<script src="/files/js/mainpage.js"></script>
+<style type="text/css">
+	$if options['use_shadow']:
+		.search_bar_makeup {
+			z-index: -2;
+			position: fixed;
+			left: 0px;
+			top: 0px;
+			right: 0px;
+			box-shadow: 0px -5px 30px rgba(0, 0, 0, 0.8);
+		}
+	.blurred_search_bar {
+		z-index: 2;
+		position: fixed;
+		left: 0px;
+		top: 0px;
+		right: 0px;
+		padding: 0px 15px 0px 0px;
+		font-size: 18px;
+		$if options['use_shadow']:
+			box-shadow: 0px -2px 12px rgba(0, 0, 0, 0.8);
+	}
+	.search_bar_background {
+		z-index: -1;
+		position: absolute;
+		left: 0px;
+		right: 0px;
+		top: 0px;
+		height: 100%;
+		background-color: rgba(255, 255, 255, 0.1);
+	}
+	.search_form {
+		margin: 0px;
+		display: inline;
+	}
+	.search_bar_input_bkgtrans {
+		background: rgba(255, 255, 255, 0.3);
+		border: 0px;
+		padding: 10px 10px 10px 15px;
+		color: #000000;
+		width: $options['region_width'];
+		margin: 0px 0px 0px $options['left_margin'];
+		font-size: 20px;
+		border-left: 5px solid rgba(255, 255, 255, 0.3);
+	}
+	.search_bar_input_bkgtrans:hover {
+		background: rgba(255, 255, 255, 0.7);
+	}
+	.search_bar_input_bkgtrans:focus {
+		background: rgba(255, 255, 255, 0.7);
+	}
+	.search_button_bkgtrans {
+		color: transparent;
+		border: 0px;
+		margin: 0px;
+		padding: 0px;
+		font-size: 20px;
+		background-image: url("/files/icons/search.ico");
+		background-size: 70%;
+		background-repeat: no-repeat;
+		background-position: center;
+		background-color: rgba(255, 255, 255, 0.7);
+	}
+	.search_button_bkgtrans:hover {
+		background-color: rgba(255, 255, 255, 0.9);
+	}
+	.search_button_bkgtrans:active {
+		background-color: rgba(0, 0, 0, 0.1);
+	}
+
+	.background::before {
+		z-index: -3;
+		content: "";
+		left: 0px;
+		right: 0px;
+		top: 0px;
+		bottom: 0px;
+		position: fixed;
+		background-image: url('/files/bkg.jpg');
+		background-attachment: fixed;
+		background-size: cover;
+	}
+	.background {
+		padding: 0px 15px 10px 0px;
+	}
+
+	.searched_item {
+		text-decoration: none;
+		display: block;
+		width: $options['region_width'];
+		margin: 20px 0px 20px $options['left_margin'];
+		$if options['use_shadow']:
+			box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.3), 0px 2px 5px rgba(0, 0, 0, 0.1);
+	}
+	.searched_item_background {
+		z-index: -1;
+		position: absolute;
+		left: 0px;
+		top: 0px;
+		right: 0px;
+		bottom: 0px;
+		border-left: 5px solid rgba(255, 255, 255, 0.2);
+	}
+	.searched_item:link {
+		color: #000000;
+	}
+	.searched_item:visited {
+		color: #002255;
+	}
+
+	.pagemarker {
+		z-index: 1;
+		font-size: 16px;
+		font-weight: bold;
+		padding: 10px 0px 10px 0px;
+		text-align: center;
+		margin: 0px;
+		background: rgba(255, 255, 255, 0.2);
+		cursor: default;
+		background-size: 65%;
+		background-repeat: no-repeat;
+		background-position: center;
+	}
+	.blurred_top_pagemarker {
+		z-index: 0;
+		width: $options['left_margin'];
+		position: fixed;
+		margin: 20px 0px 0px 0px;
+		visibility: hidden;
+	}
+	.blurred_bottom_pagemarker {
+		z-index: 0;
+		width: $options['bottom_pagemarker_width'];
+		position: fixed;
+		bottom: 30px;
+		visibility: hidden;
+	}
+	.blurred_pagemarker {
+		z-index: 1;
+		width: $options['left_margin'];
+		position: relative;
+		float: left;
+	}
+	.blurred_pagenavi {
+		z-index: 4;
+		width: 0px;
+		padding: 0px;
+		position: fixed;
+		left: $options['bottom_pagemarker_width'];
+		bottom: 30px;
+	}
+	.pagenavi_bkgtrans {
+		background-color: rgba(255, 255, 255, 0.1);
+		width: 100%;
+		border: 0px;
+		color: #000000;
+		font-size: 18px;
+		padding-left: 10px;
+		border-right: 5px solid rgba(255, 255, 255, 0.1);
+	}
+	.pagenavi_bkgtrans:hover {
+		background-color: rgba(255, 255, 255, 0.2);
+	}
+	.pagenavi_bkgtrans:focus {
+		background-color: rgba(255, 255, 255, 0.2);
+	}
+
+	.blurred_floater_bkgtrans {
+		position: relative;
+		padding: 10px 15px 10px 30px;
+	}
+	.blurred_floater_bkgtrans:hover {
+		background: rgba(255, 255, 255, 0.2);
+	}
+	.blurred_floater_bkgtrans:active {
+		background: rgba(0, 0, 0, 0.2);
+	}
+	.blurred_floater_bkgtrans h3 {
+		margin: 0px;
+		font-weight: bold;
+	}
+	.blurred_floater_bkgtrans p {
+		color: #000000;
+		margin: 5px 0px 5px 0px;
+		word-wrap: break-word;
+	}
+	.blurred_floater_bkgtrans div {
+		color: #054005;
+		word-wrap: break-word;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.blurred_floater_bkgtrans div:hover {
+		white-space: normal;
+	}
+	.blurred_floater_bkgtrans em {
+		background: #FF0000;
+		border-radius: 3px;
+		font-style: normal;
+		margin: 1px;
+		padding: 0px 1px;
+	}
+
+	[class *= "blurred"] {
+		overflow: hidden;
+	}
+	[class *= "blurred"]::before {
+		z-index: -2;
+		content: "";
+		left: 0px;
+		right: 0px;
+		top: 0px;
+		bottom: 0px;
+		position: absolute;
+		$if options['no_prebaked_fx']:
+			filter: blur(20px) brightness(150%) hue-rotate(20deg);
+			background-image: url('/files/bkg.jpg');
+			margin: -40px;
+		$else:
+			background-image: url('/files/bkg_blurred.jpg');
+		background-repeat: repeat;
+		background-attachment: fixed;
+		background-size: cover;
+	}
+
+	[class *= "bkgtrans"] {
+		transition-property: background-color;
+		transition-duration: 0.08s;
+		transition-timing-function: linear;
+	}
+</style>
+<title>Search</title>
+<body onload="do_final_layout();" onscroll="check_load_nextpage();" style="padding: 0px; margin: 0px">
+	$if options['use_shadow']:
+		<div class="search_bar_makeup" id="shadow_makeup"></div>
+	<div class="blurred_search_bar" id="search_overlay">
+		<input class="search_bar_input_bkgtrans" id="search_input" type="text" onkeypress="on_keypress(event);"><button class="search_button_bkgtrans" id="search_proceed" onclick="on_initialize_new_search(event);">_</button>
+		<div class="search_bar_background"></div>
+	</div>
+	<div class="blurred_top_pagemarker" id="up_pagemarker">
+		<p class="pagemarker" onclick="on_pagemarker_clicked(event);">_</p>
+	</div>
+	<div class="blurred_bottom_pagemarker" id="down_pagemarker" onmouseenter="on_pagemarker_addref(event);" onmouseleave="on_pagemarker_decref(event);">
+		<p class="pagemarker" onclick="on_pagemarker_clicked(event);">_</p>
+	</div>
+	<div class="blurred_pagenavi" id="pagenavi_container" onmouseenter="on_pagemarker_addref(event);" onmouseleave="on_pagemarker_decref(event);">
+		<input class="pagenavi_bkgtrans" id="pagenavi_input" type="text" placeholder="Jump to..." onfocus="on_pagemarker_addref(event);" onblur="on_pagemarker_decref(event);" onkeypress="on_jump(event);">
+	</div>
+	<div class="background" id="mainpanel"></div>
+</body>
