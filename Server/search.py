@@ -1,5 +1,6 @@
-import lucene, jieba, os
-from index_settings import *
+import lucene, jieba, os, sys
+sys.path.append('..')
+from settings import *
 from java.io import File
 from org.apache.lucene.analysis.core import WhitespaceAnalyzer
 from org.apache.lucene.index import DirectoryReader
@@ -78,7 +79,7 @@ def query_page(page, query, searcher):
 	res = searcher.searchAfter(cres.scoreDocs[-1], query, DOCS_PER_PAGE)
 	return (res.scoreDocs, res.totalHits)
 
-def search_newthread(command, folder, params, contentstr, page = 0):
+def search_newthread(command, params, contentstr, page = 0):
 	def split_parameters(userinput):
 		res = []
 		dic = {}
@@ -94,7 +95,7 @@ def search_newthread(command, folder, params, contentstr, page = 0):
 	global _vm
 
 	_vm.attachCurrentThread()
-	searcher = IndexSearcher(DirectoryReader.open(SimpleFSDirectory(File(folder))))
+	searcher = IndexSearcher(DirectoryReader.open(SimpleFSDirectory(File(FOLDER_INDEXED))))
 	analyzer = WhitespaceAnalyzer()
 
 	command, paramdic = split_parameters(command.lower())

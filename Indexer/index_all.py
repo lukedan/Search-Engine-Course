@@ -1,5 +1,6 @@
-from index_settings import *
 import os, sys, re, threading, time, urlparse, collections
+sys.path.append('..')
+from settings import *
 from bs4 import BeautifulSoup
 import jieba, lucene
 from java.io import File

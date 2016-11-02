@@ -1,5 +1,4 @@
 import web, search, os, json
-from index_settings import *
 
 _SERVER_PREFIX = 'SS'
 _SERVER_ANY_PREFIX = 'SA'
@@ -72,7 +71,7 @@ class SS_search:
 		if 'target' in user_data.keys():
 			searchstr = user_data.target
 			if len(searchstr) > 0:
-				tsr = search.search_newthread(searchstr, FOLDER_INDEXED, _SEARCH_PARAMS, 'contents', page)
+				tsr = search.search_newthread(searchstr, _SEARCH_PARAMS, 'contents', page)
 		return to_json(tsr, page)
 
 

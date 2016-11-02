@@ -7,4 +7,6 @@ Crawler/downloaded
 *.ico
 *.gif
 *.jpg
-
+.index/
+.img_index/
+.raw/
