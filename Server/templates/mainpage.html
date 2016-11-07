@@ -1,7 +1,15 @@
 $def with(options)
 <link rel="icon" href="/files/icons/search.ico" type=”image/x-icon”>
+<script src="/files/js/utils.js"></script>
 <script src="/files/js/mainpage.js"></script>
 <style type="text/css">
+	body {
+		padding: 0px;
+		margin: 0px;
+		overflow-y: scroll;
+		overflow-x: hidden;
+	}
+
 	$if options['use_shadow']:
 		.search_bar_makeup {
 			z-index: -2;
@@ -12,7 +20,7 @@ $def with(options)
 			box-shadow: 0px -5px 30px rgba(0, 0, 0, 0.8);
 		}
 	.blurred_search_bar {
-		z-index: 2;
+		z-index: 4;
 		position: fixed;
 		left: 0px;
 		top: 0px;
@@ -55,9 +63,8 @@ $def with(options)
 		color: transparent;
 		border: 0px;
 		margin: 0px;
-		padding: 0px;
 		font-size: 20px;
-		background-image: url("/files/icons/search.ico");
+		position: absolute;
 		background-size: 70%;
 		background-repeat: no-repeat;
 		background-position: center;
@@ -78,12 +85,31 @@ $def with(options)
 		top: 0px;
 		bottom: 0px;
 		position: fixed;
-		background-image: url('/files/bkg.jpg');
+		background-image: url('/files/bkg/bkg.jpg');
 		background-attachment: fixed;
 		background-size: cover;
 	}
 	.background {
 		padding: 0px 15px 10px 0px;
+	}
+
+	.image_search_left_pnl {
+		margin: 20px 0px 0px $options['left_margin'];
+		width: $options['region_width'];
+	}
+	.image_resultitem {
+		background-image: url('/files/bkg/img_trans_bkg.jpg');
+		background-attachment: fixed;
+		background-repeat: repeat;
+		margin-bottom: 30px;
+		transform: scale(1.0, 1.0);
+		box-shadow: 0px 0px 0px rgba(0, 0, 0, 1.0);
+		transition-property: transform, box-shadow;
+		transition-duration: 0.3s;
+	}
+	.image_resultitem:hover {
+		transform: scale(1.03, 1.03);
+		box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.8);
 	}
 
 	.searched_item {
@@ -217,10 +243,10 @@ $def with(options)
 		position: absolute;
 		$if options['no_prebaked_fx']:
 			filter: blur(20px) brightness(150%) hue-rotate(20deg);
-			background-image: url('/files/bkg.jpg');
+			background-image: url('/files/bkg/bkg.jpg');
 			margin: -40px;
 		$else:
-			background-image: url('/files/bkg_blurred.jpg');
+			background-image: url('/files/bkg/bkg_blurred.jpg');
 		background-repeat: repeat;
 		background-attachment: fixed;
 		background-size: cover;
@@ -233,11 +259,15 @@ $def with(options)
 	}
 </style>
 <title>Search</title>
-<body onload="do_final_layout();" onscroll="check_load_nextpage();" style="padding: 0px; margin: 0px">
+<body onload="do_final_layout();" onscroll="check_load_nextpage();">
 	$if options['use_shadow']:
 		<div class="search_bar_makeup" id="shadow_makeup"></div>
 	<div class="blurred_search_bar" id="search_overlay">
-		<input class="search_bar_input_bkgtrans" id="search_input" type="text" onkeypress="on_keypress(event);"><button class="search_button_bkgtrans" id="search_proceed" onclick="on_initialize_new_search(event);">_</button>
+		<input class="search_bar_input_bkgtrans" id="search_input" type="text" onkeypress="on_keypress(event);">\
+<span id="button_container" onmouseenter="on_buttons_mouseenter(event);" onmouseleave="on_buttons_mouseleave(event);">
+			<button class="search_button_bkgtrans" id="search_proceed" onclick="on_search_clicked(event);">_</button>
+			<button class="search_button_bkgtrans" id="search_alt" onclick="on_search_alt_clicked(event);">_</button>
+		</span>
 		<div class="search_bar_background"></div>
 	</div>
 	<div class="blurred_top_pagemarker" id="up_pagemarker">

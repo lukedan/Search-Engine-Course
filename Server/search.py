@@ -51,7 +51,6 @@ def get_summary(doc, cut_search, window = 100):
 	return maxv, lens, len(content), content[lens:lens + window], kaps
 
 MAX_PAGE_NAV = 10
-DOCS_PER_PAGE = 20
 
 # TODO not implemented
 # class result_cache:
@@ -63,23 +62,23 @@ DOCS_PER_PAGE = 20
 # 	def query(page, query, searcher):
 # 		if page >= self.page_start and page <
 
-def query_page(page, query, searcher):
+def query_page(page, query, searcher, pagesize):
 	if page == 0:
-		sres = searcher.search(query, DOCS_PER_PAGE)
+		sres = searcher.search(query, pagesize)
 		return (sres.scoreDocs, sres.totalHits)
 	spn = min(page, MAX_PAGE_NAV)
-	cres = searcher.search(query, spn * DOCS_PER_PAGE)
-	if cres.totalHits <= page * DOCS_PER_PAGE:
+	cres = searcher.search(query, spn * pagesize)
+	if cres.totalHits <= page * pagesize:
 		return ([], cres.totalHits)
 	page -= spn
 	while page > 0:
 		spn = min(page, MAX_PAGE_NAV)
-		cres = searcher.searchAfter(cres.scoreDocs[-1], query, spn * DOCS_PER_PAGE)
+		cres = searcher.searchAfter(cres.scoreDocs[-1], query, spn * pagesize)
 		page -= spn
-	res = searcher.searchAfter(cres.scoreDocs[-1], query, DOCS_PER_PAGE)
+	res = searcher.searchAfter(cres.scoreDocs[-1], query, pagesize)
 	return (res.scoreDocs, res.totalHits)
 
-def search_newthread(command, params, contentstr, page = 0):
+def search_newthread(command, params, contentstr, folder, page, pagesize):
 	def split_parameters(userinput):
 		res = []
 		dic = {}
@@ -95,7 +94,7 @@ def search_newthread(command, params, contentstr, page = 0):
 	global _vm
 
 	_vm.attachCurrentThread()
-	searcher = IndexSearcher(DirectoryReader.open(SimpleFSDirectory(File(FOLDER_INDEXED))))
+	searcher = IndexSearcher(DirectoryReader.open(SimpleFSDirectory(File(folder))))
 	analyzer = WhitespaceAnalyzer()
 
 	command, paramdic = split_parameters(command.lower())
@@ -107,5 +106,5 @@ def search_newthread(command, params, contentstr, page = 0):
 	querys.add(QueryParser(contentstr, analyzer).parse(command), BooleanClause.Occur.MUST)
 	for k, v in paramdic.items():
 		querys.add(QueryParser(params[k], analyzer).parse(v), BooleanClause.Occur.MUST)
-	docs, hits = query_page(page, querys, searcher)
+	docs, hits = query_page(page, querys, searcher, pagesize)
 	return cutwords, hits, (searcher.doc(x.doc) for x in docs)
