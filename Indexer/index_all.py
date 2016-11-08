@@ -1,6 +1,7 @@
 import os, sys, re, threading, time, urlparse, collections
 sys.path.append('..')
 from settings import *
+from common import *
 from bs4 import BeautifulSoup
 import jieba, lucene
 from java.io import File
@@ -89,6 +90,7 @@ def main():
 	imgsf = 0
 	totpgn = 0
 	pkg = 0
+	images_got = set()
 	while os.path.exists(os.path.join(FOLDER_TO_INDEX, str(pkg))):
 		pkgdir = os.path.join(FOLDER_TO_INDEX, str(pkg))
 		ensure_relative_folder_exists(os.path.join(FOLDER_RAWCONTENTS, str(pkg)))
@@ -143,23 +145,25 @@ def main():
 					imgs = soup.find_all('img')
 					for x in imgs:
 						try:
-							img = x.get('src', '')
-							img_title = x.get('title', '').lower()
-							alt = x.get('alt', '').lower()
-							info = join_strings(jieba.cut_for_search(' '.join(
-								(img_title, alt, extract_image_related_text(x))
-							).lower()), ' ')
+							img = normalize_url(urlparse.urljoin(url, x.get('src', '')))
+							if not img in images_got:
+								images_got.add(img)
+								img_title = x.get('title', '').lower()
+								alt = x.get('alt', '').lower()
+								info = join_strings(jieba.cut_for_search(' '.join(
+									(img_title, alt, extract_image_related_text(x))
+								).lower()), ' ')
 
-							doc = Document()
-							doc.add(Field('url', img, Field.Store.YES, Field.Index.NOT_ANALYZED))
-							doc.add(Field('page', url, Field.Store.YES, Field.Index.NOT_ANALYZED))
-							doc.add(StringField('domain', domain, Field.Store.YES))
-							doc.add(TextField('pagetitle', title, Field.Store.YES))
-							doc.add(Field('title', img_title, Field.Store.YES, Field.Index.NOT_ANALYZED))
-							doc.add(Field('alt', alt, Field.Store.YES, Field.Index.NOT_ANALYZED))
-							doc.add(TextField('info', info, Field.Store.YES)) # for debug
-							image_writer.addDocument(doc)
-							imgsgot += 1
+								doc = Document()
+								doc.add(Field('url', img, Field.Store.YES, Field.Index.NOT_ANALYZED))
+								doc.add(Field('page', url, Field.Store.YES, Field.Index.NOT_ANALYZED))
+								doc.add(StringField('domain', domain, Field.Store.YES))
+								doc.add(TextField('pagetitle', title, Field.Store.YES))
+								doc.add(Field('title', img_title, Field.Store.YES, Field.Index.NOT_ANALYZED))
+								doc.add(Field('alt', alt, Field.Store.YES, Field.Index.NOT_ANALYZED))
+								doc.add(TextField('info', info, Field.Store.YES)) # for debug
+								image_writer.addDocument(doc)
+								imgsgot += 1
 						except:
 							imgsf += 1
 					# done

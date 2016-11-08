@@ -1,23 +1,21 @@
-import web, search, os, json
+import web, search, os, json, sys, urlparse, urllib2
+sys.path.append('..')
+from settings import *
+from common import *
 
 _SERVER_PREFIX = 'SS'
 _SERVER_ANY_PREFIX = 'SA'
 _SEARCH_PARAMS = {
 	'site': 'domain'
 }
-_USE_FILESYSTEM_MAPPING = True
 _FSMAP_URL = '/files/'
 _FSMAP_DIRECTORY = './mapping/'
-
-_USE_CLIENTSIDE_FX = False
-_USE_SHADOWS = False
-_LEFT_MARGIN = '50px'
-_BOTTOM_PAGEMARKER_WIDTH = '40px'
-_REGION_WIDTH = '45%'
+_DOCS_PER_PAGE = 20
+_IMGS_PER_PAGE = 10
 
 renderer = web.template.render('./templates/')
 
-def to_json(resultset, page, window = 100):
+def pack_json_text(resultset, page, window = 100):
 	result = {'hits': resultset[1], 'page': page}
 	reslst = []
 	for x in resultset[2]:
@@ -48,40 +46,62 @@ def to_json(resultset, page, window = 100):
 	result['lst'] = reslst
 	return json.dumps(result)
 
+def pack_json_img(resultset, page):
+	result = {'hits': resultset[1], 'page': page}
+	reslst = []
+	for x in resultset[2]:
+		reslst.append({
+			'url': x.get('url'),
+			'pageurl': x.get('page'),
+			'title': x.get('title'),
+			'pagetitle': x.get('pagetitle')
+		})
+	result['lst'] = reslst
+	return json.dumps(result)
+
 class SS_:
 	def GET(self):
-		return renderer.mainpage({
-			'no_prebaked_fx': _USE_CLIENTSIDE_FX,
-			'use_shadow': _USE_SHADOWS,
-			'left_margin': _LEFT_MARGIN,
-			'bottom_pagemarker_width': _BOTTOM_PAGEMARKER_WIDTH,
-			'region_width': _REGION_WIDTH
-		})
+		with open('page_config.json', 'r') as fin:
+			settings = json.loads(fin.read())
+		return renderer.mainpage(settings)
+
+def _do_search(gettsr, getret):
+	user_data = web.input()
+	tsr = ((), 0, ())
+	page = 0
+	if 'page' in user_data.keys():
+		try:
+			page = int(user_data.page)
+		except:
+			page = 0
+	if 'target' in user_data.keys():
+		searchstr = user_data.target
+		if len(searchstr) > 0:
+			tsr = gettsr(searchstr, page)
+	return getret(tsr, searchstr, page)
 
 class SS_search:
 	def GET(self):
+		return _do_search(
+			(lambda ss, pg: search.search_newthread(ss, _SEARCH_PARAMS, 'contents', FOLDER_INDEXED, pg, _DOCS_PER_PAGE)),
+			(lambda tsr, ss, pg: pack_json_text(tsr, pg))
+		)
+
+class SS_searchimg:
+	def GET(self):
+		return _do_search(
+			(lambda ss, pg: search.search_newthread(ss, _SEARCH_PARAMS, 'info', FOLDER_INDEXED_IMAGES, pg, _IMGS_PER_PAGE)),
+			(lambda tsr, ss, pg: pack_json_img(tsr, pg))
+		)
+
+class SS_getimg:
+	def GET(self):
 		user_data = web.input()
-		tsr = ((), 0, ())
-		page = 0
-		if 'page' in user_data.keys():
-			try:
-				page = int(user_data.page)
-			except:
-				page = 0
-		if 'target' in user_data.keys():
-			searchstr = user_data.target
-			if len(searchstr) > 0:
-				tsr = search.search_newthread(searchstr, _SEARCH_PARAMS, 'contents', page)
-		return to_json(tsr, page)
-
-
-if _USE_FILESYSTEM_MAPPING:
-	class SA_files:
-		def GET(self, name):
-			if name[0] == '/':
-				name = name[1:]
-			with open(os.path.join(_FSMAP_DIRECTORY, name), 'r') as fin: # no checkings! attack all you want
-				return fin.read()
+		if 'url' in user_data.keys() and 'ref' in user_data.keys():
+			return urllib2.urlopen(urllib2.Request(url = normalize_url(user_data.url), headers = {
+				'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6',
+				'Referer': normalize_url(user_data.ref)
+			})).read()
 
 def generate_url_list():
 	res = []
