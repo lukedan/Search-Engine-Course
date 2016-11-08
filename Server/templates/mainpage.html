@@ -1,7 +1,7 @@
 $def with(options)
-<link rel="icon" href="/files/icons/search.ico" type=”image/x-icon”>
-<script src="/files/js/utils.js"></script>
-<script src="/files/js/mainpage.js"></script>
+<link rel="icon" href="/static/icons/search.ico" type=”image/x-icon”>
+<script src="/static/js/utils.js"></script>
+<script src="/static/js/mainpage.js"></script>
 <style type="text/css">
 	body {
 		padding: 0px;
@@ -37,27 +37,27 @@ $def with(options)
 		right: 0px;
 		top: 0px;
 		height: 100%;
-		background-color: rgba(255, 255, 255, 0.1);
+		background-color: rgba($options['theme_color'], 0.1);
 	}
 	.search_form {
 		margin: 0px;
 		display: inline;
 	}
 	.search_bar_input_bkgtrans {
-		background: rgba(255, 255, 255, 0.3);
+		background: rgba($options['theme_color'], 0.3);
 		border: 0px;
 		padding: 10px 10px 10px 15px;
 		color: #000000;
 		width: $options['region_width'];
 		margin: 0px 0px 0px $options['left_margin'];
 		font-size: 20px;
-		border-left: 5px solid rgba(255, 255, 255, 0.3);
+		border-left: 5px solid rgba($options['theme_color'], 0.3);
 	}
 	.search_bar_input_bkgtrans:hover {
-		background: rgba(255, 255, 255, 0.7);
+		background: rgba($options['theme_color'], 0.7);
 	}
 	.search_bar_input_bkgtrans:focus {
-		background: rgba(255, 255, 255, 0.7);
+		background: rgba($options['theme_color'], 0.7);
 	}
 	.search_button_bkgtrans {
 		color: transparent;
@@ -68,10 +68,10 @@ $def with(options)
 		background-size: 70%;
 		background-repeat: no-repeat;
 		background-position: center;
-		background-color: rgba(255, 255, 255, 0.7);
+		background-color: rgba($options['theme_color'], 0.7);
 	}
 	.search_button_bkgtrans:hover {
-		background-color: rgba(255, 255, 255, 0.9);
+		background-color: rgba($options['theme_color'], 0.9);
 	}
 	.search_button_bkgtrans:active {
 		background-color: rgba(0, 0, 0, 0.1);
@@ -85,7 +85,7 @@ $def with(options)
 		top: 0px;
 		bottom: 0px;
 		position: fixed;
-		background-image: url('/files/bkg/bkg.jpg');
+		background-image: url('/static/bkg/bkg.jpg');
 		background-attachment: fixed;
 		background-size: cover;
 	}
@@ -98,18 +98,26 @@ $def with(options)
 		width: $options['region_width'];
 	}
 	.image_resultitem {
-		background-image: url('/files/bkg/img_trans_bkg.jpg');
-		background-attachment: fixed;
-		background-repeat: repeat;
+		background-color: rgba($options['theme_color'], 0.0);
 		margin-bottom: 30px;
-		transform: scale(1.0, 1.0);
-		box-shadow: 0px 0px 0px rgba(0, 0, 0, 1.0);
-		transition-property: transform, box-shadow;
-		transition-duration: 0.3s;
+		$if options['use_shadow']:
+			transform: scale(1.0, 1.0);
+			box-shadow: 0px 0px 0px rgba(0, 0, 0, 1.0);
+			transition-property: transform, box-shadow, background-color;
+			transition-duration: 0.3s;
+		$else:
+			transform: translate(-3px, -3px);
+			border-width: 3px;
+			border-style: solid;
+			border-color: transparent;
+			transition-property: background-color;
+			transition-duration: 0.3s;
 	}
 	.image_resultitem:hover {
-		transform: scale(1.03, 1.03);
-		box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.8);
+		$if options['use_shadow']:
+			transform: scale(1.03, 1.03);
+			box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.8);
+		background-color: rgba($options['theme_color'], 1.0);
 	}
 
 	.searched_item {
@@ -127,7 +135,7 @@ $def with(options)
 		top: 0px;
 		right: 0px;
 		bottom: 0px;
-		border-left: 5px solid rgba(255, 255, 255, 0.2);
+		border-left: 5px solid rgba($options['theme_color'], 0.2);
 	}
 	.searched_item:link {
 		color: #000000;
@@ -143,7 +151,7 @@ $def with(options)
 		padding: 10px 0px 10px 0px;
 		text-align: center;
 		margin: 0px;
-		background: rgba(255, 255, 255, 0.2);
+		background: rgba($options['theme_color'], 0.2);
 		cursor: default;
 		background-size: 65%;
 		background-repeat: no-repeat;
@@ -178,19 +186,19 @@ $def with(options)
 		bottom: 30px;
 	}
 	.pagenavi_bkgtrans {
-		background-color: rgba(255, 255, 255, 0.1);
+		background-color: rgba($options['theme_color'], 0.1);
 		width: 100%;
 		border: 0px;
 		color: #000000;
 		font-size: 18px;
 		padding-left: 10px;
-		border-right: 5px solid rgba(255, 255, 255, 0.1);
+		border-right: 5px solid rgba($options['theme_color'], 0.1);
 	}
 	.pagenavi_bkgtrans:hover {
-		background-color: rgba(255, 255, 255, 0.2);
+		background-color: rgba($options['theme_color'], 0.2);
 	}
 	.pagenavi_bkgtrans:focus {
-		background-color: rgba(255, 255, 255, 0.2);
+		background-color: rgba($options['theme_color'], 0.2);
 	}
 
 	.blurred_floater_bkgtrans {
@@ -198,7 +206,7 @@ $def with(options)
 		padding: 10px 15px 10px 30px;
 	}
 	.blurred_floater_bkgtrans:hover {
-		background: rgba(255, 255, 255, 0.2);
+		background: rgba($options['theme_color'], 0.2);
 	}
 	.blurred_floater_bkgtrans:active {
 		background: rgba(0, 0, 0, 0.2);
@@ -230,6 +238,82 @@ $def with(options)
 		padding: 0px 1px;
 	}
 
+	.preview_panel {
+		position: fixed;
+		right: 0px;
+		bottom: 0px;
+	}
+	.img_preview_panel {
+		left: 20px;
+		top: 20px;
+		right: 30px;
+		bottom: 30px;
+		width: auto;
+		height: auto;
+		position: absolute;
+	}
+	.img_preview_img {
+		margin: auto;
+		position: absolute;
+		max-width: 100%;
+		max-height: 100%;
+		display: block;
+		top: 0px;
+		bottom: 0px;
+		left: 0px;
+		right: 0px;
+		vertical-align: middle;
+		background-image: url('/static/bkg/img_trans_bkg.jpg');
+		background-attachment: fixed;
+		background-repeat: repeat;
+	}
+	.img_preview_container {
+		position: absolute;
+		left: 10px;
+		right: 10px;
+		top: 10px;
+	}
+	.blurred_img_preview_label {
+		position: absolute;
+		left: 10px;
+		right: 10px;
+		bottom: 10px;
+	}
+	.img_preview_label_inner {
+		border-right: 5px solid rgba($options['theme_color'], 0.2);
+		padding: 10px 10px 10px 20px;
+	}
+	.img_preview_label_inner h3 {
+		margin: 0px;
+		font-weight: bold;
+		display: inline;
+	}
+	.img_preview_label_hint {
+		font-weight: bold;
+	}
+	.img_preview_label_inner small {
+		color: #054005;
+		word-wrap: break-word;
+	}
+	.img_preview_label_inner em {
+		background: #55FF66;
+		border-radius: 3px;
+		font-style: normal;
+		margin: 1px 1px 1px 20px;
+		padding: 0px 1px;
+	}
+
+	.page_preview_frame {
+		background: #FFFFFF;
+		position: absolute;
+		left: 2%;
+		top: 2%;
+		right: 3%;
+		bottom: 3%;
+		width: 95%;
+		height: 95%;
+	}
+
 	[class *= "blurred"] {
 		overflow: hidden;
 	}
@@ -243,10 +327,10 @@ $def with(options)
 		position: absolute;
 		$if options['no_prebaked_fx']:
 			filter: blur(20px) brightness(150%) hue-rotate(20deg);
-			background-image: url('/files/bkg/bkg.jpg');
+			background-image: url('/static/bkg/bkg.jpg');
 			margin: -40px;
 		$else:
-			background-image: url('/files/bkg/bkg_blurred.jpg');
+			background-image: url('/static/bkg/bkg_blurred.jpg');
 		background-repeat: repeat;
 		background-attachment: fixed;
 		background-size: cover;
@@ -278,6 +362,17 @@ $def with(options)
 	</div>
 	<div class="blurred_pagenavi" id="pagenavi_container" onmouseenter="on_pagemarker_addref(event);" onmouseleave="on_pagemarker_decref(event);">
 		<input class="pagenavi_bkgtrans" id="pagenavi_input" type="text" placeholder="Jump to..." onfocus="on_pagemarker_addref(event);" onblur="on_pagemarker_decref(event);" onkeypress="on_jump(event);">
+	</div>
+	<div class="preview_panel" id="preview_container">
+		<div class="img_preview_panel" id="img_preview">
+			<div class="img_preview_container" id="img_preview_container">
+				<img class="img_preview_img" id="img_preview_content">
+			</div>
+			<div class="blurred_img_preview_label" id="img_preview_label">
+				<div class="img_preview_label_inner" id="img_preview_label_content"></div>
+			</div>
+		</div>
+		<iframe class="page_preview_frame" id="page_preview" frameborder="0"></iframe>
 	</div>
 	<div class="background" id="mainpanel"></div>
 </body>

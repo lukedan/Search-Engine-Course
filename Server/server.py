@@ -8,17 +8,10 @@ _SERVER_ANY_PREFIX = 'SA'
 _SEARCH_PARAMS = {
 	'site': 'domain'
 }
-_USE_FILESYSTEM_MAPPING = True
 _FSMAP_URL = '/files/'
 _FSMAP_DIRECTORY = './mapping/'
 _DOCS_PER_PAGE = 20
 _IMGS_PER_PAGE = 10
-
-_USE_CLIENTSIDE_FX = False
-_USE_SHADOWS = False
-_LEFT_MARGIN = '50px'
-_BOTTOM_PAGEMARKER_WIDTH = '40px'
-_REGION_WIDTH = '45%'
 
 renderer = web.template.render('./templates/')
 
@@ -68,13 +61,9 @@ def pack_json_img(resultset, page):
 
 class SS_:
 	def GET(self):
-		return renderer.mainpage({
-			'no_prebaked_fx': _USE_CLIENTSIDE_FX,
-			'use_shadow': _USE_SHADOWS,
-			'left_margin': _LEFT_MARGIN,
-			'bottom_pagemarker_width': _BOTTOM_PAGEMARKER_WIDTH,
-			'region_width': _REGION_WIDTH
-		})
+		with open('page_config.json', 'r') as fin:
+			settings = json.loads(fin.read())
+		return renderer.mainpage(settings)
 
 def _do_search(gettsr, getret):
 	user_data = web.input()
@@ -113,14 +102,6 @@ class SS_getimg:
 				'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6',
 				'Referer': normalize_url(user_data.ref)
 			})).read()
-
-if _USE_FILESYSTEM_MAPPING:
-	class SA_files:
-		def GET(self, name):
-			if name[0] == '/':
-				name = name[1:]
-			with open(os.path.join(_FSMAP_DIRECTORY, name), 'r') as fin: # no checkings! attack all you want
-				return fin.read()
 
 def generate_url_list():
 	res = []
