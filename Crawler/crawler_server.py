@@ -34,6 +34,15 @@ class trie:
 			self._lock.release()
 		return cur_node
 
+	def for_each_nosync(self, callback):
+		stack = [(self._root, '')]
+		while len(stack) > 0:
+			curn = stack.pop()
+			if not curn[0].tag is None:
+				callback(curn[0], curn[1])
+			for k, v in curn[0].outf.items():
+				stack.append((v, curn[1] + chr(k)))
+
 class hash_table:
 	_HASH_TABLE_SIZE = 10000007
 
@@ -61,6 +70,21 @@ class hash_table:
 			return obj in self._h[self.hash_func(obj) % hash_table._HASH_TABLE_SIZE]
 		finally:
 			self._lock.release()
+
+	def dump_to_file(self, fout):
+		lines = []
+		for x in self._h:
+			for y in x:
+				lines.append(y)
+		fout.write(str(len(lines)) + '\n')
+		fout.write('\n'.join(lines))
+		fout.write('\n')
+
+	def load_from_file(self, fin):
+		numobjs = int(fin.readline())
+		for i in range(numobjs):
+			cstr = fin.readline().strip()
+			self.put(cstr)
 
 class bloom_filter:
 	_BLOOM_FILTER_SIZE = 10000007
@@ -117,6 +141,26 @@ class bloom_filter:
 		finally:
 			self._lock.release()
 
+	_SRLZ_STRT = '0'
+	_SRLZ_BIT = 6
+	_SRLZ_MSK = (1 << _SRLZ_BIT) - 1
+
+	def dump_to_file(self, fout):
+		bit = 0
+		cl = []
+		while bit < bloom_filter._BLOOM_FILTER_SIZE:
+			cl.append(chr(ord(bloom_filter._SRLZ_STRT) + ((self._ba >> bit) & bloom_filter._SRLZ_MSK)))
+			bit += bloom_filter._SRLZ_BIT
+		fout.write(''.join(cl))
+		fout.write('\n')
+
+	def load_from_file(self, fin):
+		ln = fin.readline().strip()
+		bit = 0
+		for x in ln:
+			self._ba |= (ord(x) - ord(bloom_filter._SRLZ_STRT)) << bit
+			bit += bloom_filter._SRLZ_BIT
+
 class hash_table_donelist:
 	@staticmethod
 	def hash_func(url):
@@ -134,6 +178,12 @@ class hash_table_donelist:
 
 	def has(self, url):
 		return self._ht.has(url)
+
+	def dump_to_file(self, fout):
+		self._ht.dump_to_file(fout)
+
+	def load_from_file(self, fin):
+		self._ht.load_from_file(fin)
 
 class bloom_filter_donelist:
 	@staticmethod
@@ -159,6 +209,12 @@ class bloom_filter_donelist:
 
 	def has(self, url):
 		return self._bf.has(url)
+
+	def dump_to_file(self, fout):
+		self._bf.dump_to_file(fout)
+
+	def load_from_file(self, fout):
+		self._bf.load_from_file(fout)
 
 class advanced_url_storage:
 	@staticmethod
@@ -197,7 +253,7 @@ class advanced_url_storage:
 			self.url = pdurl
 			self.q = collections.deque()
 			self.active = False
-			self.robot = robotparser.RobotFileParser()
+			self.robot = robotparser.RobotFileParser() # TODO robotparser not working
 			self.robotcontent = None
 			self.ready = False
 
@@ -252,6 +308,8 @@ class advanced_url_storage:
 		self._waitq = Queue.Queue()
 		self._shutdown = False
 		self._rbtstopped = False
+		self._paused = False
+		self._rbtpaused = False
 		t = threading.Thread(target = self._update_robots)
 		t.setDaemon(True)
 		t.start()
@@ -266,16 +324,20 @@ class advanced_url_storage:
 
 	def _update_robots(self):
 		while not self._shutdown:
+			if self._paused:
+				self._rbtpaused = True
+				continue
+			self._rbtpaused = False
 			try:
 				host = self._waitq.get(False)
 			except Queue.Empty:
 				time.sleep(0.5)
 			else:
-				host.tag.get_robot()
 				newq = collections.deque()
 				szdiff = 0
 				host.lock.acquire()
 				try:
+					host.tag.get_robot()
 					# filter the already-added URLs
 					while len(host.tag.q) > 0:
 						x = host.tag.q.popleft()
@@ -298,28 +360,34 @@ class advanced_url_storage:
 				self._hstq.put(host)
 		self._rbtstopped = True
 
-	# TODO not finished
+	# TODO hash table also needs to be saved
 	def save_shutdown(self, filename):  # to be called only when no sessions are running
 		"""
 		file format:
-		[active hosts]
-			[number of hosts]
-			[each host]
-				[robot]
-					[number of lines for robot]
-					[robot lines]
-				[urls]
-					[number of urls]
+			[stats]
+				[ordered as in the struct, for validation purposes]
+			[hosts]
+				[each host]
+					[encoded host url]
+					[robot, -1 for not ready]
+						[number of lines for robot]
+						[robot lines]
 					[urls]
-		[inactive hosts]
-			[number of hosts]
-			[each host]
-				[urls]
-					[number of urls]
-					[urls]
-		[stats]
-			[ordered as in the struct, for validation purposes]
+						[number of urls]
+						[urls]
+			[saved donelist]
 		"""
+		def add_host_to_list(node, name, reslst):
+			reslst.append(urlparse.urlunsplit(node.tag.url))
+			if not node.tag.ready:
+				reslst.append('-1')
+			else:
+				reslst.append(str(len(node.tag.robotcontent.split('\n'))))
+				reslst.append(node.tag.robotcontent.encode('utf8'))
+			reslst.append(str(len(node.tag.q)))
+			while len(node.tag.q) > 0:
+				reslst.append(''.join(node.tag.q.popleft()[::-1]).encode('utf8'))
+
 		self._shutdown = True
 		while not self._rbtstopped:
 			pass
@@ -330,25 +398,52 @@ class advanced_url_storage:
 			fout.write(str(self.stats.inactive_hosts) + '\n')
 			fout.write(str(self.stats.active_hosts) + '\n')
 			output = []
-			while True:
-				try:
-					curhst = self._hstq.get(False)
-				except Queue.Empty:
-					break
-				output.append(str(len(curhst.tag.robotcontent.split('\n'))))
-				output.append(curhst.tag.robotcontent.encode('utf8'))
-				output.append(str(len(curhst.tag.q)))
-				while len(curhst.tag.q) > 0:
-					output.append(''.join(curhst.tag.q.popleft()[::-1]))
-			while True:
-				try:
-					curhst = self._waitq.get(False)
-				except Queue.Empty:
-					break
-				output.append(str(len(curhst.tag.q)))
-				while len(curhst.tag.q) > 0:
-					output.append(''.join(curhst.tag.q.popleft()[::-1]))
+			self._hsts.for_each_nosync(lambda node, name: add_host_to_list(node, name, output))
 			fout.write('\n'.join(output))
+			fout.write('\n')
+			self._dl.dump_to_file(fout)
+
+	def load_stored_status(self, filename):
+		self._paused = True
+		while not self._rbtpaused:
+			pass
+		with open(filename, 'r') as fout:
+			self.stats.popped_urls = int(fout.readline())
+			self.stats.failed_urls = int(fout.readline())
+			self.stats.urls = int(fout.readline())
+			self.stats.inactive_hosts = int(fout.readline())
+			self.stats.active_hosts = int(fout.readline())
+			for i in range(self.stats.active_hosts + self.stats.inactive_hosts):
+				url = urlparse.urlsplit(fout.readline().strip())
+				node = self._hsts.get_node(advanced_url_storage.encode_host_url(url))
+				node.tag = advanced_url_storage.host_data(url)
+				numrbl = int(fout.readline())
+				if numrbl < 0:
+					node.tag.ready = False
+					self._waitq.put(node)
+				else:
+					rbt = u''
+					for x in range(numrbl):
+						rbt += fout.readline().decode('utf8')
+					rbt = rbt[:-1]
+					node.tag.ready = True
+					node.tag.robotcontent = rbt
+					if len(rbt) > 0:
+						node.tag.robot.parse(rbt)
+					else:
+						node.tag.robot = None
+				numurl = int(fout.readline())
+				if numurl > 0:
+					for x in range(numurl):
+						cururl = fout.readline().strip().decode('utf8')
+						node.tag.q.append((cururl[1:], cururl[0]))
+				if node.tag.ready and len(node.tag.q) > 0:
+					node.tag.active = True
+					self._hstq.put(node)
+			self._dl.load_from_file(fout)
+		self._paused = False
+		while self._rbtpaused:
+			pass
 
 	def _do_put(self, url, putfunc):
 		parsed = urlparse.urlsplit(url[0])
@@ -379,6 +474,7 @@ class advanced_url_storage:
 			if new_host:
 				self.stats.inactive_hosts += 1
 			if actived_host:
+				self.stats.inactive_hosts -= 1
 				self.stats.active_hosts += 1
 			if can_add:
 				self.stats.urls += 1
@@ -418,6 +514,7 @@ class advanced_url_storage:
 			self.stats.popped_urls += 1
 			if host_deactivated:
 				self.stats.active_hosts -= 1
+				self.stats.inactive_hosts += 1
 		finally:
 			self.stats.unlock()
 		return result
@@ -541,12 +638,13 @@ class cralwer_tcp_handler(SocketServer.ThreadingMixIn, SocketServer.StreamReques
 			self.request.sendall(S_PEND)
 
 def check_broadcast_and_respond():
+	global stopped
 	broadcastrecv = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	broadcastrecv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 	broadcastrecv.settimeout(1)
 	broadcastrecv.bind(('', BROADCAST_DEST[1]))
 	try:
-		while True:
+		while not stopped:
 			try:
 				data, addr = broadcastrecv.recvfrom(1000)
 				if data == BROADCAST_CONTENT:
@@ -589,6 +687,10 @@ def _csv_continue():
 def _csv_is_paused():
 	global paused
 	print(paused)
+
+def _csv_load():
+	global sto
+	sto.load_stored_status('.savedstorage')
 
 def _csv_stat():
 	sys.stdout.write(sto.stats.to_str())
