@@ -1,4 +1,5 @@
-import traceback, sys, urllib, urllib2, time, urlparse, subprocess
+import traceback, sys, urllib, urllib2, time, urlparse, subprocess, os, re
+from bs4 import BeautifulSoup
 
 def normalize_url(url):
 	def to_ascii(ustr):
@@ -111,3 +112,38 @@ def execute_commands_until(target_cmd, prefix, lup_tbl):
 				print('Exception thrown during the execution of command: ' + str(e))
 		else:
 			print('Unrecognized command: ' + cmd[0])
+
+def get_all_links(curpage, pgdata):
+		# for x in re.findall('<\s*[Aa]\s(?:"(?:\\\\|\\"|[^"])*"|[^>])*?\s[Hh][Rr][Ee][Ff]\s*=\s*"((?:http|/)(?:\\\\|\\"|[^"])*)', pgdata):
+		# 	print x
+		soup = BeautifulSoup(pgdata, 'html.parser')
+		res = []
+		for x in soup.find_all('a', {'href': re.compile('^(http|/)')}):
+			try:
+				url = normalize_url(urlparse.urljoin(curpage, x['href'].strip()))
+				res.append(url)
+			except:
+				pass
+		return res
+
+def walk_stashed_pages(directory, callback, on_fdr = None, on_thd = None):
+	fdr = 0
+	fdrp = os.path.join(directory, str(fdr))
+	while os.path.exists(fdrp):
+		thd = 0
+		thdp = os.path.join(fdrp, str(thd))
+		if on_fdr:
+			on_fdr(fdr, fdrp)
+		while os.path.exists(thdp):
+			if on_thd:
+				on_thd(fdr, thd, thdp)
+			with open(os.path.join(thdp, 'index'), 'r') as fin:
+				for x in fin.readlines():
+					r = x.strip().split('\t')
+					if len(r) < 2:
+						continue
+					callback(fdr, thd, int(r[0]), os.path.join(thdp, r[0]), '\t'.join(r[1:]))
+			thd += 1
+			thdp = os.path.join(fdrp, str(thd))
+		fdr += 1
+		fdrp = os.path.join(directory, str(fdr))

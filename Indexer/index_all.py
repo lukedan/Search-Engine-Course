@@ -60,19 +60,90 @@ class progressbar:
 		sys.stdout.write('\n')
 		sys.stdout.flush()
 
+imgsgot = 0
+imgsf = 0
+totpgn = 0
+images_got = set()
+file_writer = None
+image_writer = None
+
+def extract_image_related_text(node, maxlen = 50):
+	lastcontent = ''
+	while not node.parent is None:
+		node = node.parent
+		ccn = node.get_text(' ', strip = True)
+		if len(ccn) > maxlen:
+			break
+		lastcontent = ccn
+	return lastcontent
+
+def ensure_relative_folder_exists(folder):
+	if not os.path.exists(folder):
+		os.mkdir(folder)
+
+def process_single_file(iv, jv, kv, filename, url):
+	global imgsgot, imgsf, totpgn, images_got, file_writer, image_writer
+
+	domain = urlparse.urlsplit(url)
+	spdm = domain.hostname.split('.')
+	domain = []
+	for i in range(len(spdm)):
+		domain.append('.'.join(spdm[i:]))
+	domain = ' '.join(domain)  # hack it!
+	with open(filename, 'r') as pagereader:
+		contents = pagereader.read().decode('utf8')
+	soup = BeautifulSoup(contents, 'html.parser')
+	# index page
+	clean_soup(soup)
+	contents = soup.get_text(' ', strip = True).lower()
+	clean_path = '/'.join((str(iv), str(jv), str(kv)))
+	with open(os.path.join(FOLDER_RAWCONTENTS, clean_path), 'w') as ccsaver:
+		ccsaver.write(contents.encode('utf8'))
+	contents = join_strings(jieba.cut_for_search(contents), ' ')
+	title = ''
+	tgen = soup.find_all('title')
+	if len(tgen) > 0:
+		title = join_strings((x.strip() for x in tgen[0].strings)).replace('\n', '')
+	doc = Document()
+	doc.add(StringField('name', filename, Field.Store.YES))
+	doc.add(Field('path', clean_path, Field.Store.YES, Field.Index.NOT_ANALYZED))
+	doc.add(TextField('title', title, Field.Store.YES))
+	doc.add(Field('url', url, Field.Store.YES, Field.Index.NOT_ANALYZED))
+	doc.add(TextField('contents', contents, Field.Store.NO))
+	doc.add(TextField('domain', domain, Field.Store.YES))
+	file_writer.addDocument(doc)
+	# index images
+	imgs = soup.find_all('img')
+	for x in imgs:
+		try:
+			img = normalize_url(urlparse.urljoin(url, x.get('src', '')))
+			if not img in images_got:
+				images_got.add(img)
+				img_title = x.get('title', '').lower()
+				alt = x.get('alt', '').lower()
+				info = join_strings(jieba.cut_for_search(' '.join(
+					(img_title, alt, extract_image_related_text(x))
+				).lower()), ' ')
+
+				doc = Document()
+				doc.add(Field('url', img, Field.Store.YES, Field.Index.NOT_ANALYZED))
+				doc.add(Field('page', url, Field.Store.YES, Field.Index.NOT_ANALYZED))
+				doc.add(StringField('domain', domain, Field.Store.YES))
+				doc.add(TextField('pagetitle', title, Field.Store.YES))
+				doc.add(Field('title', img_title, Field.Store.YES, Field.Index.NOT_ANALYZED))
+				doc.add(Field('alt', alt, Field.Store.YES, Field.Index.NOT_ANALYZED))
+				doc.add(TextField('info', info, Field.Store.YES))  # for debug
+				image_writer.addDocument(doc)
+				imgsgot += 1
+		except:
+			imgsf += 1
+	# done
+	sys.stdout.write('\rpages: {0}  img: {1} ({2} failed)     '.format(totpgn, imgsgot, imgsf))
+	sys.stdout.flush()
+	totpgn += 1
+
 def main():
-	def extract_image_related_text(node, maxlen = 50):
-		lastcontent = ''
-		while not node.parent is None:
-			node = node.parent
-			ccn = node.get_text(' ', strip = True)
-			if len(ccn) > maxlen:
-				break
-			lastcontent = ccn
-		return lastcontent
-	def ensure_relative_folder_exists(folder):
-		if not os.path.exists(folder):
-			os.mkdir(folder)
+	global file_writer, image_writer
 
 	lucene.initVM(vmargs=['-Djava.awt.headless=true'])
 	jieba.initialize()
@@ -86,94 +157,12 @@ def main():
 	img_cfg.setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND)
 	image_writer = IndexWriter(SimpleFSDirectory(File(FOLDER_INDEXED_IMAGES)), img_cfg)
 
-	imgsgot = 0
-	imgsf = 0
-	totpgn = 0
-	pkg = 0
-	images_got = set()
-	while os.path.exists(os.path.join(FOLDER_TO_INDEX, str(pkg))):
-		pkgdir = os.path.join(FOLDER_TO_INDEX, str(pkg))
-		ensure_relative_folder_exists(os.path.join(FOLDER_RAWCONTENTS, str(pkg)))
-		thr = 0
-		while os.path.exists(os.path.join(pkgdir, str(thr))):
-			thrdir = os.path.join(pkgdir, str(thr))
-			ensure_relative_folder_exists(os.path.join(FOLDER_RAWCONTENTS, str(pkg), str(thr)))
-			pb = progressbar()
-			if thr == 0:
-				pb.text_left = str(pkg)
-			else:
-				pb.text_left = ' ' * len(str(pkg))
-			pb.text_left = '\r' + pb.text_left + ':' + str(thr) + '\t['
-			pb.text_right = ']'
-			pb.show(False)
-			with open(os.path.join(thrdir, 'index'), 'r') as fin:
-				lines = fin.readlines()
-				done = 0
-				for x in lines:
-					spres = x.split('\t')
-					filename = os.path.join(thrdir, spres[0])
-					url = '\t'.join(spres[1:]).strip()
-					domain = urlparse.urlsplit(url)
-					spdm = domain.hostname.split('.')
-					domain = []
-					for i in range(len(spdm)):
-						domain.append('.'.join(spdm[i:]))
-					domain = ' '.join(domain) # hack it!
-					with open(filename, 'r') as pagereader:
-						contents = pagereader.read().decode('utf8')
-					soup = BeautifulSoup(contents, 'html.parser')
-					# index page
-					clean_soup(soup)
-					contents = soup.get_text(' ', strip = True).lower()
-					clean_path = '/'.join((str(pkg), str(thr), spres[0]))
-					with open(os.path.join(FOLDER_RAWCONTENTS, clean_path), 'w') as ccsaver:
-						ccsaver.write(contents.encode('utf8'))
-					contents = join_strings(jieba.cut_for_search(contents), ' ')
-					title = ''
-					tgen = soup.find_all('title')
-					if len(tgen) > 0:
-						title = join_strings((x.strip() for x in tgen[0].strings)).replace('\n', '')
-					doc = Document()
-					doc.add(StringField('name', filename, Field.Store.YES))
-					doc.add(Field('path', clean_path, Field.Store.YES, Field.Index.NOT_ANALYZED))
-					doc.add(TextField('title', title, Field.Store.YES))
-					doc.add(Field('url', url, Field.Store.YES, Field.Index.NOT_ANALYZED))
-					doc.add(TextField('contents', contents, Field.Store.NO))
-					doc.add(TextField('domain', domain, Field.Store.YES))
-					file_writer.addDocument(doc)
-					# index images
-					imgs = soup.find_all('img')
-					for x in imgs:
-						try:
-							img = normalize_url(urlparse.urljoin(url, x.get('src', '')))
-							if not img in images_got:
-								images_got.add(img)
-								img_title = x.get('title', '').lower()
-								alt = x.get('alt', '').lower()
-								info = join_strings(jieba.cut_for_search(' '.join(
-									(img_title, alt, extract_image_related_text(x))
-								).lower()), ' ')
-
-								doc = Document()
-								doc.add(Field('url', img, Field.Store.YES, Field.Index.NOT_ANALYZED))
-								doc.add(Field('page', url, Field.Store.YES, Field.Index.NOT_ANALYZED))
-								doc.add(StringField('domain', domain, Field.Store.YES))
-								doc.add(TextField('pagetitle', title, Field.Store.YES))
-								doc.add(Field('title', img_title, Field.Store.YES, Field.Index.NOT_ANALYZED))
-								doc.add(Field('alt', alt, Field.Store.YES, Field.Index.NOT_ANALYZED))
-								doc.add(TextField('info', info, Field.Store.YES)) # for debug
-								image_writer.addDocument(doc)
-								imgsgot += 1
-						except:
-							imgsf += 1
-					# done
-					done += 1
-					totpgn += 1
-					pb.text_right = '] ' + str(totpgn) + ' pages, ' + str(imgsgot) + '/' + str(imgsf) + ' images'
-					pb.on_progress_changed(done / float(len(lines)), forcerefresh = True)
-				pb.on_done('done')
-			thr += 1
-		pkg += 1
+	walk_stashed_pages(
+		FOLDER_TO_INDEX,
+		process_single_file,
+		lambda x, y: ensure_relative_folder_exists(os.path.join(FOLDER_RAWCONTENTS, str(x))),
+		lambda x, y, z: ensure_relative_folder_exists(os.path.join(FOLDER_RAWCONTENTS, str(x), str(y)))
+	)
 	sys.stdout.write('\n')
 	sys.stdout.write('Commiting... ')
 	sys.stdout.flush()

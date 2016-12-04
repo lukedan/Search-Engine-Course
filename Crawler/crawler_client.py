@@ -172,19 +172,6 @@ class crawler_session:
 			desc += ': ' + self.cur_page
 		return desc
 
-	def get_all_links(self, pgdata):
-		# for x in re.findall('<\s*[Aa]\s(?:"(?:\\\\|\\"|[^"])*"|[^>])*?\s[Hh][Rr][Ee][Ff]\s*=\s*"((?:http|/)(?:\\\\|\\"|[^"])*)', pgdata):
-		# 	print x
-		soup = BeautifulSoup(pgdata, 'html.parser')
-		res = []
-		for x in soup.find_all('a', {'href': re.compile('^(http|/)')}):
-			try:
-				url = normalize_url(urlparse.urljoin(self.cur_page, x['href'].strip()))
-				res.append(url)
-			except:
-				self.logger.write('[BADURL] ' + self.cur_page + ' | ' + x['href'].strip().encode('utf8') + '\n')
-		return res
-
 	def submit_and_acquire(self, data):
 		timer = phased_timer()
 		timer.start('crat')
@@ -264,7 +251,7 @@ class crawler_session:
 					self.status = crawler_session.SAVEPAGE
 					self.writer.write(self.cur_page, content)
 					timer.tick('getlinks')
-					lst = self.get_all_links(content)
+					lst = get_all_links(self.cur_page, content)
 					commmsg = (C_SUCCESS, str(len(lst)) + '\n' + '\n'.join(lst) + '\n')
 				if self.write_timing_message:
 					timres = timer.stop()
